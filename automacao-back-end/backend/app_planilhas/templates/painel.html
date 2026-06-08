@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Sinistros CET</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800">
+
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-8 bg-white p-6 rounded-lg shadow-sm">
+            <div>
+                <h1 class="text-2xl font-bold text-blue-900">Sistema de Automação de Sinistros</h1>
+                <p class="text-sm text-gray-500">Engenharia de Tráfego - CET São Paulo</p>
+            </div>
+            
+            <form action="{% url 'acionar_robo' %}" method="POST" id="form-robo" class="flex items-center gap-4 bg-gray-50 p-4 rounded-md border border-gray-200">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Mês</label>
+                    <input type="number" name="mes" min="1" max="12" value="1" required class="w-16 p-1.5 border border-gray-300 rounded text-center bg-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Ano</label>
+                    <input type="number" name="ano" min="2020" max="2030" value="2026" required class="w-24 p-1.5 border border-gray-300 rounded text-center bg-white">
+                </div>
+                <button type="submit" id="btn-gerar" class="mt-5 bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-4 rounded transition shadow-sm cursor-pointer">
+                    Gerar Relatório
+                </button>
+            </form>
+        </div>
+
+        <div id="loading-screen" class="hidden mb-8 bg-blue-50 border border-blue-200 text-blue-800 p-6 rounded-lg text-center shadow-sm">
+            <p class="font-bold text-lg animate-pulse">Buscando dados...</p>
+            <p class="text-sm text-blue-600 mt-1">A abrir o Chrome, a recolher dados do InfoSiga, IBGE, Senatran e a cruzar o mapa das GETs. 1 Minuto</p>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="mb-8 p-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 border border-green-300 text-green-800{% else %}bg-red-100 border border-red-300 text-red-800{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% if relatorio %}
+        <h2 class="text-xl font-bold text-gray-700 mb-4">Relatório Consolidado: Período {{ relatorio.mes|stringformat:"02d" }}/{{ relatorio.ano }}</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-600">
+                <span class="text-xs font-bold text-gray-400 uppercase">População (IBGE)</span>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ relatorio.populacao }}</p>
+            </div>
+            <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-green-600">
+                <span class="text-xs font-bold text-gray-400 uppercase">Frota Total (Senatran)</span>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ relatorio.frota_total }}</p>
+                <span class="text-xs text-gray-500">Motos: {{ relatorio.frota_motos }}</span>
+            </div>
+            <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-red-600">
+                <span class="text-xs font-bold text-gray-400 uppercase">Total Óbitos (Painel)</span>
+                <p class="text-2xl font-bold text-red-600 mt-1">{{ relatorio.total_obitos_painel }}</p>
+                <span class="text-xs text-gray-500">No Mapa CET: {{ relatorio.total_obitos_mapa }}</span>
+            </div>
+            <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-purple-600">
+                <span class="text-xs font-bold text-gray-400 uppercase">Mortalidade / 100k Hab</span>
+                <p class="text-2xl font-bold text-purple-900 mt-1">{{ relatorio.taxa_mortalidade_100k_habitantes }}</p>
+                <span class="text-xs text-gray-500">Por 10k frot.: {{ relatorio.taxa_mortalidade_10k_veiculos }}</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h3 class="text-lg font-bold text-gray-700 mb-4 border-b border-gray-100 pb-2">Mortes no Trânsito por GET</h3>
+                <div class="mb-6 h-64 flex justify-center">
+                    <canvas id="chartGets"></canvas>
+                </div>
+                <table class="w-full text-sm text-left">
+                    <thead>
+                        <tr class="bg-gray-50 text-gray-500 uppercase text-xs">
+                            <th class="p-2">Categoria</th>
+                            <th class="p-2 text-right">Óbitos</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <tr><td class="p-2 font-medium">Mortes GET 1-CN</td><td class="p-2 text-right">{{ relatorio.get_1_cn }}</td></tr>
+                        <tr><td class="p-2 font-medium">Mortes GET 2-NO</td><td class="p-2 text-right">{{ relatorio.get_2_no }}</td></tr>
+                        <tr><td class="p-2 font-medium">Mortes GET 3-SE</td><td class="p-2 text-right">{{ relatorio.get_3_se }}</td></tr>
+                        <tr><td class="p-2 font-medium">Mortes GET 4-SU</td><td class="p-2 text-right">{{ relatorio.get_4_su }}</td></tr>
+                        <tr><td class="p-2 font-medium">Mortes GET 5-SO</td><td class="p-2 text-right">{{ relatorio.get_5_so }}</td></tr>
+                        <tr><td class="p-2 font-medium">Mortes GET 6-MB</td><td class="p-2 text-right">{{ relatorio.get_6_mb }}</td></tr>
+                        <tr><td class="p-2 font-medium">Mortes GET 7-LE</td><td class="p-2 text-right">{{ relatorio.get_7_le }}</td></tr>
+                        <tr><td class="p-2 font-medium">Mortes GET 8-OE</td><td class="p-2 text-right">{{ relatorio.get_8_oe }}</td></tr>
+                        <tr class="bg-blue-50/50"><td class="p-2 font-semibold">Rodovias</td><td class="p-2 text-right font-semibold text-blue-900">{{ relatorio.rodovias }}</td></tr>
+                        <tr class="bg-orange-50/50"><td class="p-2 font-semibold">Sem informação</td><td class="p-2 text-right font-semibold text-orange-900">{{ relatorio.sem_informacao_geo }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h3 class="text-lg font-bold text-gray-700 mb-4 border-b border-gray-100 pb-2">Distribuição por Modais (InfoSiga)</h3>
+                <div class="mb-6 h-64 flex justify-center">
+                    <canvas id="chartModais"></canvas>
+                </div>
+                <table class="w-full text-sm text-left">
+                    <thead>
+                        <tr class="bg-gray-50 text-gray-500 uppercase text-xs">
+                            <th class="p-2">Modal</th>
+                            <th class="p-2 text-right">Quantidade</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <tr><td class="p-2 font-medium">Óbitos de Pedestres</td><td class="p-2 text-right">{{ relatorio.obitos_pedestres }}</td></tr>
+                        <tr><td class="p-2 font-medium">Óbitos de Motociclistas</td><td class="p-2 text-right">{{ relatorio.obitos_motociclistas }}</td></tr>
+                        <tr><td class="p-2 font-medium">Óbitos de Ocupantes de Automóveis</td><td class="p-2 text-right">{{ relatorio.obitos_automoveis }}</td></tr>
+                        <tr><td class="p-2 font-medium">Óbitos de Ciclistas</td><td class="p-2 text-right">{{ relatorio.obitos_ciclistas }}</td></tr>
+                        <tr><td class="p-2 font-medium">Outros / Não Informados</td><td class="p-2 text-right">{{ relatorio.obitos_nao_informados_modal }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+        {% else %}
+        <div class="bg-white p-12 rounded-lg shadow-sm text-center">
+            <p class="text-gray-500 text-lg">Nenhum relatório gerado no banco de dados.</p>
+            <p class="text-sm text-gray-400 mt-1">Utilize o formulário acima para disparar o robô pela primeira vez.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Mostra a tela de carregamento quando o formulário for enviado
+        document.getElementById('form-robo').addEventListener('submit', function() {
+            document.getElementById('loading-screen').classList.remove('hidden');
+            document.getElementById('btn-gerar').disabled = true;
+            document.getElementById('btn-gerar').innerText = "A processar...";
+        });
+
+        {% if relatorio %}
+        // Configuração do Gráfico de GETs (Gráfico de Barras Horizontais)
+        const ctxGets = document.getElementById('chartGets').getContext('2d');
+        new Chart(ctxGets, {
+            type: 'bar',
+            data: {
+                labels: ['GET 1', 'GET 2', 'GET 3', 'GET 4', 'GET 5', 'GET 6', 'GET 7', 'GET 8', 'Rodovias', 'S/ Info'],
+                datasets: [{
+                    label: 'Óbitos',
+                    data: [
+                        {{ relatorio.get_1_cn }}, {{ relatorio.get_2_no }}, {{ relatorio.get_3_se }}, 
+                        {{ relatorio.get_4_su }}, {{ relatorio.get_5_so }}, {{ relatorio.get_6_mb }}, 
+                        {{ relatorio.get_7_le }}, {{ relatorio.get_8_oe }}, {{ relatorio.rodovias }}, 
+                        {{ relatorio.sem_informacao_geo }}
+                    ],
+                    backgroundColor: ['#1e3a8a', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#059669', '#047857', '#6b7280', '#f97316']
+                }]
+            },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
+        });
+
+        // Configuração do Gráfico de Modais (Gráfico de Pizza)
+        const ctxModais = document.getElementById('chartModais').getContext('2d');
+        new Chart(ctxModais, {
+            type: 'pie',
+            data: {
+                labels: ['Pedestres', 'Motociclistas', 'Automóveis', 'Ciclistas', 'Outros'],
+                datasets: [{
+                    data: [
+                        {{ relatorio.obitos_pedestres }}, {{ relatorio.obitos_motociclistas }}, 
+                        {{ relatorio.obitos_automoveis }}, {{ relatorio.obitos_ciclistas }}, 
+                        {{ relatorio.obitos_nao_informados_modal }}
+                    ],
+                    backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#9ca3af']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+        {% endif %}
+    </script>
+</body>
+
+<footer class="mt-12 mb-4 border-t border-gray-200 pt-6">
+            <div class="text-center text-xs text-gray-500">
+                <p class="font-semibold text-gray-600 mb-2 uppercase tracking-wide">Fontes de Dados Oficiais utilizadas na composição deste relatório:</p>
+                <ul class="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-4">
+                    <li><span class="font-bold text-gray-700">InfoSiga SP:</span> Painel de Sinistros de Trânsito (Vítimas Fatais e Modais)</li>
+                    <li><span class="font-bold text-gray-700">Senatran:</span> Frota Nacional de Veículos (Ministério dos Transportes)</li>
+                    <li><span class="font-bold text-gray-700">IBGE:</span> Estimativa Populacional do Município de São Paulo</li>
+                    <li><span class="font-bold text-gray-700">CET-SP:</span> Base Cartográfica de Gerências de Trânsito (GETs)</li>
+                </ul>
+                <p>&copy; {% now "Y" %} - Sistema de Automação de Sinistros. Gerado de forma automatizada via Python.</p>
+            </div>
+        </footer>
+
+</html>

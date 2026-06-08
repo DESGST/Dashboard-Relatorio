@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plataforma CET — Inteligência de Sinistros</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0d0d0f;
+    --surface: #141417;
+    --surface2: #1c1c21;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #f0efe8;
+    --muted: rgba(240,239,232,0.45);
+    --accent: #c8ff57;
+    --accent2: #ff6b6b;
+    --accent3: #57c8ff;
+    --accent4: #ffc857;
+    --font-head: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  .grid-bg {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(200,255,87,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,255,87,0.015) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .wrap { position: relative; z-index: 1; max-width: 1240px; margin: 0 auto; padding: 32px 24px; }
+
+  /* TOP NAV */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 40px; padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; flex-direction: column; gap: 2px; }
+  .brand-title {
+    font-family: var(--font-head); font-size: 20px; font-weight: 700;
+    letter-spacing: -0.5px; color: var(--text);
+  }
+  .brand-sub { font-size: 12px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; }
+  .controls {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 10px 16px; border-radius: var(--radius);
+  }
+  .ctrl-group { display: flex; flex-direction: column; gap: 3px; }
+  .ctrl-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .ctrl-input {
+    background: var(--surface2); border: 1px solid var(--border2);
+    color: var(--text); font-family: var(--font-head); font-size: 15px; font-weight: 600;
+    padding: 4px 8px; border-radius: var(--radius-sm); width: 64px; text-align: center;
+    transition: border-color 0.2s;
+  }
+  .ctrl-input:focus { outline: none; border-color: var(--accent); }
+  .btn {
+    font-family: var(--font-head); font-size: 13px; font-weight: 600;
+    padding: 8px 18px; border-radius: var(--radius-sm); border: none;
+    cursor: pointer; transition: all 0.18s; letter-spacing: 0.02em;
+  }
+  .btn-primary { background: var(--accent); color: #0d0d0f; }
+  .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn-ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border2);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--border2); background: var(--surface2); }
+  .btn-anim { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+  .btn-anim.running { border-color: var(--accent); color: var(--accent); }
+  .btn-anim:hover { background: var(--surface); }
+
+  /* KPI CARDS */
+  .kpi-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px;
+  }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 20px 16px;
+    position: relative; overflow: hidden; transition: border-color 0.2s;
+  }
+  .kpi:hover { border-color: var(--border2); }
+  .kpi-accent { position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+  .kpi-value {
+    font-family: var(--font-head); font-size: 28px; font-weight: 700;
+    color: var(--text); letter-spacing: -1px;
+    transition: all 0.4s;
+  }
+  .kpi-delta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .kpi-delta .up { color: var(--accent2); }
+  .kpi-delta .down { color: var(--accent); }
+
+  /* TABS */
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; }
+  .tab {
+    font-family: var(--font-head); font-size: 13px; font-weight: 500;
+    padding: 7px 18px; border-radius: 100px; cursor: pointer;
+    border: 1px solid transparent; color: var(--muted); transition: all 0.15s;
+  }
+  .tab.active { background: var(--surface2); border-color: var(--border2); color: var(--text); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  /* CHART PANELS */
+  .chart-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .chart-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px;
+  }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .panel-title { font-family: var(--font-head); font-size: 14px; font-weight: 600; letter-spacing: -0.2px; }
+  .panel-subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .pill {
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
+    padding: 3px 9px; border-radius: 100px;
+  }
+  .pill-green { background: rgba(200,255,87,0.12); color: var(--accent); }
+  .pill-red { background: rgba(255,107,107,0.12); color: var(--accent2); }
+  .pill-blue { background: rgba(87,200,255,0.12); color: var(--accent3); }
+  .canvas-wrap { position: relative; }
+  .legend-row { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+  /* COMPARE SECTION */
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .compare-ctrl { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .select-styled {
+    background: var(--surface2); border: 1px solid var(--border2); color: var(--text);
+    font-family: var(--font-body); font-size: 13px; padding: 6px 12px;
+    border-radius: var(--radius-sm); cursor: pointer;
+  }
+  .select-styled:focus { outline: none; border-color: var(--accent); }
+  .vs-badge {
+    font-family: var(--font-head); font-size: 11px; font-weight: 700;
+    padding: 4px 10px; border-radius: 100px;
+    background: rgba(200,255,87,0.1); color: var(--accent); letter-spacing: 0.05em;
+  }
+
+  /* ANUAL TABLE */
+  .year-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; margin-bottom: 16px; }
+  .month-cell {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 4px; text-align: center;
+    cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden;
+  }
+  .month-cell:hover { border-color: var(--accent); }
+  .month-cell.selected { border-color: var(--accent); background: rgba(200,255,87,0.08); }
+  .month-cell .m-name { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .month-cell .m-val { font-family: var(--font-head); font-size: 14px; font-weight: 700; color: var(--text); margin-top: 4px; }
+  .month-cell .m-bar {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+    background: var(--accent); transform-origin: left;
+    transition: transform 0.5s ease;
+  }
+
+  /* TIMELINE */
+  .timeline-panel { margin-bottom: 16px; }
+
+  /* ALERT */
+  .alert-bar {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,107,107,0.07); border: 1px solid rgba(255,107,107,0.2);
+    border-radius: var(--radius); padding: 12px 16px; margin-bottom: 24px;
+    font-size: 13px; color: rgba(255,150,150,0.9); display: none;
+  }
+  .alert-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); flex-shrink: 0; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* PLAYER */
+  .player-bar {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 20px; margin-bottom: 24px;
+    display: none;
+  }
+  .player-bar.active { display: flex; }
+  .player-label { font-family: var(--font-head); font-size: 13px; font-weight: 600; color: var(--muted); }
+  .player-current { font-family: var(--font-head); font-size: 16px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
+  .progress-track { flex: 1; height: 2px; background: var(--border2); border-radius: 2px; position: relative; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.85s ease; }
+
+  /* EXPORT */
+  .action-row { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 16px; }
+
+  /* SECTION DIVIDER */
+  .section-divider {
+    display: flex; align-items: center; gap: 12px; margin: 28px 0 20px;
+  }
+  .section-divider-label { font-family: var(--font-head); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); white-space: nowrap; }
+  .section-divider-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* LOADING */
+  .loading-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(13,13,15,0.85);
+    display: flex; align-items: center; justify-content: center;
+    display: none; flex-direction: column; gap: 12px;
+  }
+  .loading-overlay.show { display: flex; }
+  .loader {
+    width: 32px; height: 32px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loader-text { font-family: var(--font-head); font-size: 13px; color: var(--muted); }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .chart-grid { grid-template-columns: 1fr; }
+    .chart-grid-3 { grid-template-columns: 1fr; }
+    .compare-grid { grid-template-columns: 1fr; }
+    .year-grid { grid-template-columns: repeat(6, 1fr); }
+    .topbar { flex-direction: column; align-items: flex-start; gap: 16px; }
+  }
+  @media (max-width: 600px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .year-grid { grid-template-columns: repeat(4, 1fr); }
+    .controls { flex-wrap: wrap; }
+    .tabs { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="wrap">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-title">CET — Sinistros</span>
+      <span class="brand-sub">Plataforma de Inteligência de Tráfego</span>
+    </div>
+    <div class="controls">
+      <div class="ctrl-group">
+        <span class="ctrl-label">Mês</span>
+        <input type="number" id="input-mes" class="ctrl-input" min="1" max="12" value="4">
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Ano</span>
+        <input type="number" id="input-ano" class="ctrl-input" min="2020" max="2030" value="2025" style="width:80px">
+      </div>
+      <button class="btn btn-primary" onclick="buscarDadosMes()">Analisar</button>
+      <button class="btn btn-anim" id="btn-animar" onclick="toggleTimeLapse()">▶ Time-Lapse</button>
+    </div>
+  </header>
+
+  <!-- ALERT -->
+  <div class="alert-bar" id="alert-bar">
+    <div class="alert-dot"></div>
+    <span id="alert-text"></span>
+  </div>
+
+  <!-- TIME-LAPSE PLAYER BAR -->
+  <div class="player-bar" id="player-bar">
+    <span class="player-label">Exibindo</span>
+    <span class="player-current" id="player-current">—</span>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <span style="font-size:12px; color:var(--muted);" id="player-counter">0 / 0</span>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs" id="main-tabs">
+    <div class="tab active" onclick="switchTab('mensal')">Visão Mensal</div>
+    <div class="tab" onclick="switchTab('comparar')">Comparar Períodos</div>
+    <div class="tab" onclick="switchTab('anual')">Painel Anual</div>
+    <div class="tab" onclick="switchTab('timeline')">Linha do Tempo</div>
+  </div>
+
+  <!-- ===== TAB: MENSAL ===== -->
+  <div id="tab-mensal">
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-accent" style="background:var(--accent)"></div>
+        <div class="kpi-label">Óbitos no Mês</div>
+        <div class="kpi-value" id="kpi-obitos">—</div>
+        <div class="kpi-delta" id="kpi-obitos-d">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-accent" style="background:var(--accent3)"></div>
+        <div class="kpi-label">Taxa / 100k hab.</div>
+        <div class="kpi-value" id="kpi-taxa" style="color:var(--accent3)">—</div>
+        <div class="kpi-delta" id="kpi-taxa-d">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-accent" style="background:var(--accent4)"></div>
+        <div class="kpi-label">Frota Registrada</div>
+        <div class="kpi-value" id="kpi-frota" style="color:var(--accent4)">—</div>
+        <div class="kpi-delta">veículos</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-accent" style="background:rgba(255,255,255,0.15)"></div>
+        <div class="kpi-label">População</div>
+        <div class="kpi-value" id="kpi-pop" style="font-size:22px">—</div>
+        <div class="kpi-delta">habitantes</div>
+      </div>
+    </div>
+
+    <!-- CHART MAIN ROW -->
+    <div class="chart-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Óbitos por Região (GET)</div>
+            <div class="panel-subtitle">Comparativo entre gerências territoriais</div>
+          </div>
+          <button class="btn btn-ghost" onclick="exportPNG('chartGets','get_regioes')" style="font-size:12px;padding:5px 12px">↓ PNG</button>
+        </div>
+        <div class="canvas-wrap" style="height:260px">
+          <canvas id="chartGets" role="img" aria-label="Gráfico de óbitos por região GET"></canvas>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Mix de Modais</div>
+            <div class="panel-subtitle">Distribuição por tipo de usuário</div>
+          </div>
+          <span class="pill pill-red" id="modal-pico-pill">—</span>
+        </div>
+        <div class="canvas-wrap" style="height:180px">
+          <canvas id="chartModais" role="img" aria-label="Gráfico de óbitos por modal de transporte"></canvas>
+        </div>
+        <div class="legend-row" id="legend-modais"></div>
+      </div>
+    </div>
+
+    <!-- RADAR + HEAT ROW -->
+    <div class="chart-grid-3">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Perfil de Risco</div>
+            <div class="panel-subtitle">Índice relativo por dimensão</div>
+          </div>
+          <span class="pill pill-blue">Radar</span>
+        </div>
+        <div class="canvas-wrap" style="height:200px">
+          <canvas id="chartRadar" role="img" aria-label="Gráfico radar de perfil de risco"></canvas>
+        </div>
+      </div>
+      <div class="panel" style="grid-column: span 2">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Intensidade por GET — Heatmap</div>
+            <div class="panel-subtitle">Escala normalizada 0–100</div>
+          </div>
+        </div>
+        <div id="heatmap-container" style="display:grid;grid-template-columns:repeat(9,1fr);gap:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: COMPARAR ===== -->
+  <div id="tab-comparar" style="display:none">
+    <div class="compare-ctrl">
+      <span style="font-size:13px;color:var(--muted)">Período A:</span>
+      <select id="cmp-a-mes" class="select-styled">
+        <option value="1">Jan</option><option value="2">Fev</option><option value="3">Mar</option>
+        <option value="4" selected>Abr</option><option value="5">Mai</option><option value="6">Jun</option>
+        <option value="7">Jul</option><option value="8">Ago</option><option value="9">Set</option>
+        <option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option>
+      </select>
+      <input type="number" id="cmp-a-ano" class="ctrl-input" value="2024" style="width:80px">
+      <span class="vs-badge">VS</span>
+      <span style="font-size:13px;color:var(--muted)">Período B:</span>
+      <select id="cmp-b-mes" class="select-styled">
+        <option value="1">Jan</option><option value="2">Fev</option><option value="3">Mar</option>
+        <option value="4" selected>Abr</option><option value="5">Mai</option><option value="6">Jun</option>
+        <option value="7">Jul</option><option value="8">Ago</option><option value="9">Set</option>
+        <option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option>
+      </select>
+      <input type="number" id="cmp-b-ano" class="ctrl-input" value="2025" style="width:80px">
+      <button class="btn btn-primary" onclick="executarComparacao()">Comparar</button>
+    </div>
+
+    <div class="compare-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title" id="cmp-a-title">Período A</div>
+            <div class="panel-subtitle">—</div>
+          </div>
+          <span class="pill pill-blue" id="cmp-a-pill">—</span>
+        </div>
+        <div class="canvas-wrap" style="height:220px">
+          <canvas id="chartCmpA" role="img" aria-label="Comparação período A"></canvas>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title" id="cmp-b-title">Período B</div>
+            <div class="panel-subtitle">—</div>
+          </div>
+          <span class="pill pill-green" id="cmp-b-pill">—</span>
+        </div>
+        <div class="canvas-wrap" style="height:220px">
+          <canvas id="chartCmpB" role="img" aria-label="Comparação período B"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Variação Relativa (%) — A → B</div>
+      </div>
+      <div class="canvas-wrap" style="height:200px">
+        <canvas id="chartCmpDiff" role="img" aria-label="Variação relativa entre períodos"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: ANUAL ===== -->
+  <div id="tab-anual" style="display:none">
+    <div class="compare-ctrl" style="margin-bottom:20px">
+      <span style="font-size:13px;color:var(--muted)">Ano de referência:</span>
+      <input type="number" id="anual-ano" class="ctrl-input" value="2025" style="width:88px">
+      <button class="btn btn-primary" onclick="carregarAnual()">Carregar Ano Completo</button>
+      <button class="btn btn-ghost" onclick="exportExcel()" style="margin-left:auto">↓ Exportar Excel</button>
+    </div>
+    <div id="year-grid-container">
+      <div class="year-grid" id="year-grid"></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div class="panel-title">Evolução Mensal do Ano</div>
+        <span class="pill pill-green" id="anual-total-pill">—</span>
+      </div>
+      <div class="canvas-wrap" style="height:220px">
+        <canvas id="chartAnual" role="img" aria-label="Evolução mensal de óbitos no ano"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: TIMELINE ===== -->
+  <div id="tab-timeline" style="display:none">
+    <div class="panel timeline-panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Curva de Crescimento Acumulado</div>
+          <div class="panel-subtitle">Construída dinamicamente pelo Time-Lapse</div>
+        </div>
+        <button class="btn btn-ghost" onclick="exportPNG('chartTimeline','timeline_acumulado')" style="font-size:12px;padding:5px 12px">↓ PNG</button>
+      </div>
+      <div class="canvas-wrap" style="height:300px">
+        <canvas id="chartTimeline" role="img" aria-label="Curva de crescimento acumulado de óbitos ao longo do tempo"></canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Taxa de Mortalidade 100k — Tendência</div>
+      </div>
+      <div class="canvas-wrap" style="height:200px">
+        <canvas id="chartTaxaTrend" role="img" aria-label="Tendência da taxa de mortalidade por 100 mil habitantes"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT ROW -->
+  <div class="action-row">
+    <button class="btn btn-ghost" onclick="exportExcel()">↓ Exportar Excel</button>
+    <button class="btn btn-ghost" onclick="exportPNG('chartGets','regioes')">↓ PNG Regiões</button>
+  </div>
+
+</div>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loading">
+  <div class="loader"></div>
+  <span class="loader-text">Consultando API...</span>
+</div>
+
+<script>
+// =========================================================
+// DADOS DEMO — substitua pelas chamadas reais à API Django
+// =========================================================
+function gerarDadosMock(mes, ano) {
+  const seed = mes * 17 + ano * 3;
+  const rng = (min, max, s) => {
+    const x = Math.sin(seed + s) * 10000;
+    return Math.floor((x - Math.floor(x)) * (max - min) + min);
+  };
+  return {
+    mes, ano,
+    contexto: { populacao: 12325232, frota_total: 8430000 + rng(0, 200000, 1) },
+    modais: {
+      pedestres: rng(8, 35, 2),
+      motociclistas: rng(20, 70, 3),
+      automoveis: rng(5, 25, 4),
+      ciclistas: rng(2, 12, 5),
+      total_painel: 0
+    },
+    taxas: { mortalidade_100k: (rng(60, 120, 6) / 10).toFixed(1) },
+    geografia: {
+      get_1_cn: rng(4, 20, 7), get_2_no: rng(2, 15, 8), get_3_se: rng(5, 22, 9),
+      get_4_su: rng(3, 18, 10), get_5_so: rng(4, 20, 11), get_6_mb: rng(2, 12, 12),
+      get_7_le: rng(5, 25, 13), get_8_oe: rng(3, 16, 14), rodovias: rng(1, 10, 15)
+    }
+  };
+}
+
+function calcTotal(d) {
+  d.modais.total_painel = d.modais.pedestres + d.modais.motociclistas + d.modais.automoveis + d.modais.ciclistas;
+  return d;
+}
+
+// =========================================================
+// STATE
+// =========================================================
+let charts = {};
+let dadosAtual = null;
+let tlData = { labels: [], obitos: [], taxas: [] };
+let tlRunning = false, tlInterval = null, tlIndex = 0, tlList = [];
+let dadosAnual = [];
+let dadosCmpA = null, dadosCmpB = null;
+
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const GET_LABELS = ['GET 1 — CN','GET 2 — NO','GET 3 — SE','GET 4 — SU','GET 5 — SO','GET 6 — MB','GET 7 — LE','GET 8 — OE','Rodovias'];
+const MODAL_COLORS = ['#ff6b6b','#c8ff57','#57c8ff','#ffc857'];
+const MODAL_LABELS = ['Pedestres','Motociclistas','Automóveis','Ciclistas'];
+
+// =========================================================
+// INIT CHARTS
+// =========================================================
+window.addEventListener('DOMContentLoaded', () => {
+  initCharts();
+  buscarDadosMes();
+});
+
+function chartDefaults() {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 700, easing: 'easeOutQuart' },
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: '#1c1c21', titleColor: '#f0efe8', bodyColor: 'rgba(240,239,232,0.6)',
+      borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, padding: 10,
+      titleFont: { family: 'Syne', weight: '600' }
+    }}
+  };
+}
+
+function initCharts() {
+  // GET Bars
+  charts.gets = new Chart(document.getElementById('chartGets'), {
+    type: 'bar',
+    data: { labels: GET_LABELS, datasets: [{ label: 'Óbitos', data: new Array(9).fill(0), backgroundColor: 'rgba(200,255,87,0.15)', borderColor: '#c8ff57', borderWidth: 1, borderRadius: 4 }] },
+    options: { ...chartDefaults(), indexAxis: 'y', scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(240,239,232,0.45)', font: { size: 11 } } },
+      y: { grid: { display: false }, ticks: { color: 'rgba(240,239,232,0.55)', font: { size: 11 } } }
+    }}
+  });
+
+  // Modal Doughnut
+  charts.modais = new Chart(document.getElementById('chartModais'), {
+    type: 'doughnut',
+    data: { labels: MODAL_LABELS, datasets: [{ data: [0,0,0,0], backgroundColor: MODAL_COLORS, borderWidth: 0, hoverOffset: 6 }] },
+    options: { ...chartDefaults(), cutout: '68%' }
+  });
+
+  // Radar
+  charts.radar = new Chart(document.getElementById('chartRadar'), {
+    type: 'radar',
+    data: { labels: ['Pedestres','Motoc.','Autos','Ciclistas','GET-Alta','GET-Media'],
+      datasets: [{ label: 'Risco', data: [0,0,0,0,0,0], backgroundColor: 'rgba(200,255,87,0.1)', borderColor: '#c8ff57', borderWidth: 1.5, pointBackgroundColor: '#c8ff57', pointRadius: 3 }]
+    },
+    options: { ...chartDefaults(), scales: { r: {
+      grid: { color: 'rgba(255,255,255,0.06)' },
+      angleLines: { color: 'rgba(255,255,255,0.08)' },
+      pointLabels: { color: 'rgba(240,239,232,0.5)', font: { size: 10 } },
+      ticks: { display: false }
+    }}}
+  });
+
+  // Timeline
+  charts.timeline = new Chart(document.getElementById('chartTimeline'), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label: 'Óbitos Acum.', data: [], borderColor: '#c8ff57', backgroundColor: 'rgba(200,255,87,0.06)', fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: '#c8ff57', borderWidth: 2 }] },
+    options: { ...chartDefaults(), scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(240,239,232,0.45)', font: { size: 11 }, maxRotation: 45 } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(240,239,232,0.45)', font: { size: 11 } } }
+    }}
+  });
+
+  // Taxa trend
+  charts.taxaTrend = new Chart(document.getElementById('chartTaxaTrend'), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label: 'Taxa/100k', data: [], borderColor: '#57c8ff', backgroundColor: 'rgba(87,200,255,0.06)', fill: true, tension: 0.35, pointRadius: 2, borderWidth: 2, borderDash: [] }] },
+    options: { ...chartDefaults(), scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(240,239,232,0.45)', font: { size: 11 } } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(240,239,232,0.45)', font: { size: 11 } } }
+    }}
+  });
+
+  // Anual line
+  charts.anual = new Chart(document.getElementById('chartAnual'), {
+    type: 'bar',
+    data: { labels: MESES, datasets: [
+      { label: 'Óbitos', data: new Array(12).fill(0), backgroundColor: 'rgba(200,255,87,0.15)', borderColor: '#c8ff57', borderWidth: 1, borderRadius: 4 },
+      { label: 'Tendência', data: new Array(12).fill(null), type: 'line', borderColor: '#57c8ff', borderWidth: 2, tension: 0.4, pointRadius: 0 }
+    ]},
+    options: { ...chartDefaults(), scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(240,239,232,0.45)' } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(240,239,232,0.45)' } }
+    }}
+  });
+
+  // Compare A
+  charts.cmpA = new Chart(document.getElementById('chartCmpA'), {
+    type: 'bar',
+    data: { labels: MODAL_LABELS, datasets: [{ label: 'A', data: [0,0,0,0], backgroundColor: 'rgba(87,200,255,0.2)', borderColor: '#57c8ff', borderWidth: 1, borderRadius: 4 }] },
+    options: { ...chartDefaults(), scales: {
+      x: { grid: { display: false }, ticks: { color: 'rgba(240,239,232,0.45)', font: { size: 11 } } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(240,239,232,0.45)', font: { size: 11 } } }
+    }}
+  });
+
+  // Compare B
+  charts.cmpB = new Chart(document.getElementById('chartCmpB'), {
+    type: 'bar',
+    data: { labels: MODAL_LABELS, datasets: [{ label: 'B', data: [0,0,0,0], backgroundColor: 'rgba(200,255,87,0.2)', borderColor: '#c8ff57', borderWidth: 1, borderRadius: 4 }] },
+    options: { ...chartDefaults(), scales: {
+      x: { grid: { display: false }, ticks: { color: 'rgba(240,239,232,0.45)', font: { size: 11 } } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(240,239,232,0.45)', font: { size: 11 } } }
+    }}
+  });
+
+  // Compare Diff
+  charts.cmpDiff = new Chart(document.getElementById('chartCmpDiff'), {
+    type: 'bar',
+    data: { labels: MODAL_LABELS, datasets: [{ label: 'Variação %', data: [0,0,0,0], backgroundColor: (ctx) => ctx.raw >= 0 ? 'rgba(255,107,107,0.3)' : 'rgba(200,255,87,0.3)', borderColor: (ctx) => ctx.raw >= 0 ? '#ff6b6b' : '#c8ff57', borderWidth: 1, borderRadius: 4 }] },
+    options: { ...chartDefaults(), scales: {
+      x: { grid: { display: false }, ticks: { color: 'rgba(240,239,232,0.45)' } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(240,239,232,0.45)', callback: v => v + '%' } }
+    }}
+  });
+}
+
+// =========================================================
+// BUSCAR DADOS
+// =========================================================
+async function buscarDadosMes(silencioso = false) {
+  const ano = parseInt(document.getElementById('input-ano').value);
+  const mes = parseInt(document.getElementById('input-mes').value);
+  if (!silencioso) document.getElementById('loading').classList.add('show');
+  try {
+    // TENTATIVA DE API REAL
+    let data;
+    try {
+      const r = await fetch(`http://127.0.0.1:8000/api/relatorio/?ano=${ano}&mes=${mes}`);
+      if (!r.ok) throw new Error();
+      data = await r.json();
+    } catch {
+      data = calcTotal(gerarDadosMock(mes, ano));
+    }
+    dadosAtual = data;
+    atualizarInterface(data);
+    return data;
+  } finally {
+    if (!silencioso) document.getElementById('loading').classList.remove('show');
+  }
+}
+
+function atualizarInterface(data) {
+  const fmt = n => n?.toLocaleString('pt-BR') ?? '—';
+  document.getElementById('kpi-obitos').textContent = data.modais.total_painel;
+  document.getElementById('kpi-taxa').textContent = data.taxas.mortalidade_100k;
+  document.getElementById('kpi-frota').textContent = fmt(data.contexto.frota_total);
+  document.getElementById('kpi-pop').textContent = fmt(data.contexto.populacao);
+
+  const gets = [
+    data.geografia.get_1_cn, data.geografia.get_2_no, data.geografia.get_3_se,
+    data.geografia.get_4_su, data.geografia.get_5_so, data.geografia.get_6_mb,
+    data.geografia.get_7_le, data.geografia.get_8_oe, data.geografia.rodovias
+  ];
+
+  charts.gets.data.datasets[0].data = gets;
+  charts.gets.update();
+
+  const modVals = [data.modais.pedestres, data.modais.motociclistas, data.modais.automoveis, data.modais.ciclistas];
+  charts.modais.data.datasets[0].data = modVals;
+  charts.modais.update();
+
+  // Radar normalizado
+  const maxM = Math.max(...modVals) || 1;
+  const maxG = Math.max(...gets) || 1;
+  const getAlta = Math.max(data.geografia.get_1_cn, data.geografia.get_7_le, data.geografia.get_3_se);
+  charts.radar.data.datasets[0].data = [
+    Math.round(data.modais.pedestres / maxM * 100),
+    Math.round(data.modais.motociclistas / maxM * 100),
+    Math.round(data.modais.automoveis / maxM * 100),
+    Math.round(data.modais.ciclistas / maxM * 100),
+    Math.round(getAlta / maxG * 100),
+    Math.round((data.geografia.get_4_su + data.geografia.get_2_no) / 2 / maxG * 100)
+  ];
+  charts.radar.update();
+
+  // Heatmap
+  const maxH = Math.max(...gets) || 1;
+  const hc = document.getElementById('heatmap-container');
+  const getNomes = ['CN','NO','SE','SU','SO','MB','LE','OE','Rod'];
+  hc.innerHTML = gets.map((v, i) => {
+    const pct = Math.round(v / maxH * 100);
+    const alpha = 0.08 + (pct / 100) * 0.62;
+    return `<div style="background:rgba(200,255,87,${alpha.toFixed(2)});border-radius:8px;padding:14px 6px;text-align:center;border:1px solid rgba(200,255,87,${(alpha * 1.5).toFixed(2)})">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:rgba(200,255,87,0.6);margin-bottom:6px">GET ${getNomes[i]}</div>
+      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:rgba(200,255,87,${(0.5 + pct/100*0.5).toFixed(2)})">${v}</div>
+      <div style="font-size:9px;color:rgba(200,255,87,0.4);margin-top:3px">${pct}%</div>
+    </div>`;
+  }).join('');
+
+  // Legenda modal
+  const legendEl = document.getElementById('legend-modais');
+  const total = modVals.reduce((a, b) => a + b, 0) || 1;
+  legendEl.innerHTML = MODAL_LABELS.map((l, i) => `
+    <span class="legend-item">
+      <span class="legend-dot" style="background:${MODAL_COLORS[i]}"></span>
+      ${l} <strong style="color:var(--text);margin-left:2px">${Math.round(modVals[i]/total*100)}%</strong>
+    </span>`).join('');
+
+  // Modal pico pill
+  const pico = MODAL_LABELS[modVals.indexOf(Math.max(...modVals))];
+  document.getElementById('modal-pico-pill').textContent = pico;
+
+  // Alert
+  if (data.modais.total_painel > 0) {
+    document.getElementById('alert-text').innerHTML = `Análise de fatores: criticidade no modal <strong>${pico.toUpperCase()}</strong> — ${Math.max(...modVals)} ocorrências em ${MESES[data.mes - 1]}/${data.ano}.`;
+    document.getElementById('alert-bar').style.display = 'flex';
+  }
+}
+
+// =========================================================
+// TABS
+// =========================================================
+function switchTab(id) {
+  ['mensal','comparar','anual','timeline'].forEach(t => {
+    document.getElementById(`tab-${t}`).style.display = t === id ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', ['mensal','comparar','anual','timeline'][i] === id);
+  });
+}
+
+// =========================================================
+// TIME-LAPSE
+// =========================================================
+async function toggleTimeLapse() {
+  const btn = document.getElementById('btn-animar');
+  const bar = document.getElementById('player-bar');
+
+  if (tlRunning) {
+    clearInterval(tlInterval);
+    tlRunning = false;
+    btn.textContent = '▶ Time-Lapse';
+    btn.classList.remove('running');
+    bar.classList.remove('active');
+    return;
+  }
+
+  // Gera lista de 24 meses históricos
+  if (tlList.length === 0) {
+    try {
+      const r = await fetch('http://127.0.0.1:8000/api/historico/');
+      if (r.ok) tlList = await r.json();
+    } catch {}
+    if (tlList.length === 0) {
+      // Gera mock
+      tlList = [];
+      for (let y = 2023; y <= 2025; y++) {
+        for (let m = 1; m <= 12; m++) {
+          const d = calcTotal(gerarDadosMock(m, y));
+          tlList.push({ mes: m, ano: y, total: d.modais.total_painel, taxa: parseFloat(d.taxas.mortalidade_100k) });
+        }
+      }
+    }
+  }
+
+  tlRunning = true;
+  tlIndex = 0;
+  btn.textContent = '⏸ Pausar';
+  btn.classList.add('running');
+  bar.classList.add('active');
+
+  // Reset timeline charts
+  tlData = { labels: [], obitos: [], taxas: [] };
+  charts.timeline.data.labels = [];
+  charts.timeline.data.datasets[0].data = [];
+  charts.timeline.update();
+  charts.taxaTrend.data.labels = [];
+  charts.taxaTrend.data.datasets[0].data = [];
+  charts.taxaTrend.update();
+
+  // Switch to timeline tab
+  switchTab('timeline');
+
+  tlInterval = setInterval(async () => {
+    if (tlIndex >= tlList.length) {
+      clearInterval(tlInterval);
+      tlRunning = false;
+      btn.textContent = '▶ Time-Lapse';
+      btn.classList.remove('running');
+      bar.classList.remove('active');
+      return;
+    }
+    const p = tlList[tlIndex];
+    document.getElementById('input-ano').value = p.ano;
+    document.getElementById('input-mes').value = p.mes;
+
+    const label = `${MESES[p.mes-1]}/${p.ano}`;
+    document.getElementById('player-current').textContent = label;
+    document.getElementById('player-counter').textContent = `${tlIndex + 1} / ${tlList.length}`;
+    document.getElementById('progress-fill').style.width = `${((tlIndex + 1) / tlList.length * 100).toFixed(1)}%`;
+
+    await buscarDadosMes(true);
+
+    tlData.labels.push(label);
+    tlData.obitos.push(p.total);
+    tlData.taxas.push(p.taxa);
+
+    charts.timeline.data.labels = [...tlData.labels];
+    charts.timeline.data.datasets[0].data = [...tlData.obitos];
+    charts.timeline.update();
+
+    charts.taxaTrend.data.labels = [...tlData.labels];
+    charts.taxaTrend.data.datasets[0].data = [...tlData.taxas];
+    charts.taxaTrend.update();
+
+    tlIndex++;
+  }, 900);
+}
+
+// =========================================================
+// COMPARAR
+// =========================================================
+async function executarComparacao() {
+  const mA = parseInt(document.getElementById('cmp-a-mes').value);
+  const yA = parseInt(document.getElementById('cmp-a-ano').value);
+  const mB = parseInt(document.getElementById('cmp-b-mes').value);
+  const yB = parseInt(document.getElementById('cmp-b-ano').value);
+
+  document.getElementById('loading').classList.add('show');
+  try {
+    let dA, dB;
+    try {
+      const [rA, rB] = await Promise.all([
+        fetch(`http://127.0.0.1:8000/api/relatorio/?ano=${yA}&mes=${mA}`),
+        fetch(`http://127.0.0.1:8000/api/relatorio/?ano=${yB}&mes=${mB}`)
+      ]);
+      dA = rA.ok ? await rA.json() : null;
+      dB = rB.ok ? await rB.json() : null;
+    } catch {}
+    dA = dA || calcTotal(gerarDadosMock(mA, yA));
+    dB = dB || calcTotal(gerarDadosMock(mB, yB));
+
+    dadosCmpA = dA; dadosCmpB = dB;
+    const vA = [dA.modais.pedestres, dA.modais.motociclistas, dA.modais.automoveis, dA.modais.ciclistas];
+    const vB = [dB.modais.pedestres, dB.modais.motociclistas, dB.modais.automoveis, dB.modais.ciclistas];
+
+    document.getElementById('cmp-a-title').textContent = `${MESES[mA-1]}/${yA}`;
+    document.getElementById('cmp-b-title').textContent = `${MESES[mB-1]}/${yB}`;
+    document.getElementById('cmp-a-pill').textContent = `${dA.modais.total_painel} óbitos`;
+    document.getElementById('cmp-b-pill').textContent = `${dB.modais.total_painel} óbitos`;
+
+    charts.cmpA.data.datasets[0].data = vA;
+    charts.cmpA.update();
+    charts.cmpB.data.datasets[0].data = vB;
+    charts.cmpB.update();
+
+    const diff = vA.map((a, i) => vA[i] === 0 ? 0 : Math.round((vB[i] - a) / a * 100));
+    charts.cmpDiff.data.datasets[0].data = diff;
+    charts.cmpDiff.data.datasets[0].backgroundColor = diff.map(v => v >= 0 ? 'rgba(255,107,107,0.3)' : 'rgba(200,255,87,0.25)');
+    charts.cmpDiff.data.datasets[0].borderColor = diff.map(v => v >= 0 ? '#ff6b6b' : '#c8ff57');
+    charts.cmpDiff.update();
+  } finally {
+    document.getElementById('loading').classList.remove('show');
+  }
+}
+
+// =========================================================
+// PAINEL ANUAL
+// =========================================================
+async function carregarAnual() {
+  const ano = parseInt(document.getElementById('anual-ano').value);
+  document.getElementById('loading').classList.add('show');
+  try {
+    dadosAnual = [];
+    for (let m = 1; m <= 12; m++) {
+      let d;
+      try {
+        const r = await fetch(`http://127.0.0.1:8000/api/relatorio/?ano=${ano}&mes=${m}`);
+        d = r.ok ? await r.json() : null;
+      } catch {}
+      d = d || calcTotal(gerarDadosMock(m, ano));
+      dadosAnual.push(d);
+    }
+
+    const vals = dadosAnual.map(d => d.modais.total_painel);
+    const total = vals.reduce((a, b) => a + b, 0);
+    const maxV = Math.max(...vals) || 1;
+
+    // Grid calor
+    const grid = document.getElementById('year-grid');
+    grid.innerHTML = vals.map((v, i) => {
+      const pct = v / maxV;
+      const alpha = 0.06 + pct * 0.55;
+      return `<div class="month-cell ${v === Math.max(...vals) ? 'selected' : ''}" onclick="selectMonth(${i+1},${ano})">
+        <div class="m-name">${MESES[i]}</div>
+        <div class="m-val">${v}</div>
+        <div class="m-bar" style="transform:scaleX(${pct.toFixed(2)});background:rgba(200,255,87,0.8)"></div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('anual-total-pill').textContent = `${total} óbitos / ${ano}`;
+
+    // Tendência simples (média móvel 3)
+    const trend = vals.map((_, i) => {
+      const slice = vals.slice(Math.max(0, i - 1), i + 2);
+      return Math.round(slice.reduce((a, b) => a + b, 0) / slice.length);
+    });
+
+    charts.anual.data.datasets[0].data = vals;
+    charts.anual.data.datasets[1].data = trend;
+    charts.anual.update();
+  } finally {
+    document.getElementById('loading').classList.remove('show');
+  }
+}
+
+function selectMonth(mes, ano) {
+  document.getElementById('input-mes').value = mes;
+  document.getElementById('input-ano').value = ano;
+  buscarDadosMes();
+  switchTab('mensal');
+}
+
+// =========================================================
+// EXPORTS
+// =========================================================
+function exportPNG(chartId, nome) {
+  const c = charts[chartId] || Chart.getChart(chartId);
+  if (!c) return;
+  const a = document.createElement('a');
+  a.download = `${nome}.png`;
+  a.href = c.toBase64Image();
+  a.click();
+}
+
+function exportExcel() {
+  if (!dadosAtual) return;
+  const d = dadosAtual;
+  const wb = XLSX.utils.book_new();
+  const rows = [
+    ['Mês','Ano','População','Frota Total','Óbitos Totais','Pedestres','Motociclistas','Automóveis','Ciclistas','Taxa /100k','GET-1 CN','GET-2 NO','GET-3 SE','GET-4 SU','GET-5 SO','GET-6 MB','GET-7 LE','GET-8 OE','Rodovias'],
+    [d.mes, d.ano, d.contexto.populacao, d.contexto.frota_total, d.modais.total_painel, d.modais.pedestres, d.modais.motociclistas, d.modais.automoveis, d.modais.ciclistas, d.taxas.mortalidade_100k, d.geografia.get_1_cn, d.geografia.get_2_no, d.geografia.get_3_se, d.geografia.get_4_su, d.geografia.get_5_so, d.geografia.get_6_mb, d.geografia.get_7_le, d.geografia.get_8_oe, d.geografia.rodovias]
+  ];
+  if (dadosAnual.length > 0) {
+    const anualRows = [rows[0], ...dadosAnual.map(dd => rows[1].map((_, i) => rows[1][i]))];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dadosAnual.map(dd =>
+      [dd.mes, dd.ano, dd.contexto.populacao, dd.contexto.frota_total, dd.modais.total_painel, dd.modais.pedestres, dd.modais.motociclistas, dd.modais.automoveis, dd.modais.ciclistas, dd.taxas.mortalidade_100k, dd.geografia.get_1_cn, dd.geografia.get_2_no, dd.geografia.get_3_se, dd.geografia.get_4_su, dd.geografia.get_5_so, dd.geografia.get_6_mb, dd.geografia.get_7_le, dd.geografia.get_8_oe, dd.geografia.rodovias]
+    )), `Anual_${document.getElementById('anual-ano').value}`);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Mês Atual');
+  XLSX.writeFile(wb, `CET_Sinistros_${d.mes}_${d.ano}.xlsx`);
+}
+</script>
+</body>
+</html>
