@@ -1,29 +1,4 @@
 
-function gerarDadosMock(mes, ano) {
-  const seed = mes * 17 + ano * 3;
-  const rng = (min, max, s) => {
-    const x = Math.sin(seed + s) * 10000;
-    return Math.floor((x - Math.floor(x)) * (max - min) + min);
-  };
-  return {
-    mes, ano,
-    contexto: { populacao: 12325232, frota_total: 8430000 + rng(0, 200000, 1) },
-    modais: {
-      pedestres: rng(8, 35, 2), motociclistas: rng(20, 70, 3),
-      automoveis: rng(5, 25, 4), ciclistas: rng(2, 12, 5), total_painel: 0
-    },
-    taxas: { mortalidade_100k: (rng(60, 120, 6) / 10).toFixed(1) },
-    geografia: {
-      get_1_cn: rng(4,20,7), get_2_no: rng(2,15,8), get_3_se: rng(5,22,9),
-      get_4_su: rng(3,18,10), get_5_so: rng(4,20,11), get_6_mb: rng(2,12,12),
-      get_7_le: rng(5,25,13), get_8_oe: rng(3,16,14), rodovias: rng(1,10,15)
-    }
-  };
-}
-function calcTotal(d) {
-  d.modais.total_painel = d.modais.pedestres + d.modais.motociclistas + d.modais.automoveis + d.modais.ciclistas;
-  return d;
-}
 
 /* ── ESTADO GLOBAL ──────────────────────────────────── */
 let charts = {};
@@ -183,23 +158,48 @@ charts.radar = new Chart(document.getElementById('chartRadar'), {
     options: { ...def, scales: { x:{grid:{display:false},ticks:{color:c.text}}, y:{...sc.y, ticks:{...sc.y.ticks, callback: v=>v+'%'}} } }
   });
 }
-
-/* ── BUSCAR DADOS ─────────────────────────────────── */
 async function buscarDadosMes(silencioso = false) {
   const ano = parseInt(document.getElementById('input-ano').value);
   const mes = parseInt(document.getElementById('input-mes').value);
+  
   if (!silencioso) document.getElementById('loading').classList.add('show');
+  
   try {
-    let data;
-    try {
-      const r = await fetch(`http://127.0.0.1:8000/api/relatorio/?ano=${ano}&mes=${mes}`);
-      if (!r.ok) throw new Error();
-      data = await r.json();
-    } catch { data = calcTotal(gerarDadosMock(mes, ano)); }
+    // 1. Tenta buscar a verdade absoluta no backend
+    const r = await fetch(`http://127.0.0.1:8000/api/relatorio/?ano=${ano}&mes=${mes}`);
+    
+    // Se a API retornar erro (como 404 ou 500), joga para o Catch
+    if (!r.ok) throw new Error('Erro na resposta da API');
+    
+    const data = await r.json();
+    
+    // Sucesso! Esconde o erro e atualiza a tela
+    document.getElementById('alerta-erro').style.display = 'none';
     dadosAtual = data;
     atualizarInterface(data);
     return data;
+    
+  } catch (error) {
+    // 2. FALHA CRÍTICA! O servidor caiu ou a internet falhou.
+    
+    // Mostra a faixa de erro
+    document.getElementById('alerta-erro').style.display = 'block';
+    
+    // Monta um pacote de dados estritamente ZERADO para esvaziar o painel visualmente
+    const dadosZerados = {
+      mes: mes, ano: ano,
+      contexto: { populacao: 0, frota_total: 0 },
+      modais: { pedestres: 0, motociclistas: 0, automoveis: 0, ciclistas: 0, total_painel: 0 },
+      taxas: { mortalidade_100k: "0.0" },
+      geografia: { get_1_cn: 0, get_2_no: 0, get_3_se: 0, get_4_su: 0, get_5_so: 0, get_6_mb: 0, get_7_le: 0, get_8_oe: 0, rodovias: 0 }
+    };
+    
+    // Atualiza a tela com os zeros e limpa a variável atual para impedir exportações falsas
+    dadosAtual = dadosZerados; 
+    atualizarInterface(dadosZerados);
+    
   } finally {
+    // Remove a tela de carregamento, dando erro ou não
     if (!silencioso) document.getElementById('loading').classList.remove('show');
   }
 }
@@ -209,7 +209,7 @@ function atualizarInterface(data) {
   const c = getChartColors();
 
   document.getElementById('kpi-obitos').textContent = data.modais.total_painel;
-  document.getElementById('kpi-taxa').textContent   = data.taxas.mortalidade_100k;
+  atualizarTaxaKpi();
   document.getElementById('kpi-frota').textContent  = fmt(data.contexto.frota_total);
   document.getElementById('kpi-pop').textContent    = fmt(data.contexto.populacao);
 
@@ -274,6 +274,19 @@ function atualizarInterface(data) {
     document.getElementById('alert-text').innerHTML = `Análise · Criticidade no modal <strong>${pico.toUpperCase()}</strong> — ${Math.max(...modVals)} ocorrências em ${MESES[data.mes-1]}/${data.ano}`;
     document.getElementById('alert-bar').style.display = 'flex';
   }
+}
+
+function atualizarTaxaKpi() {
+  if (!dadosAtual) return; // Se não tem dados carregados, não faz nada
+  
+  const multiplicador = parseInt(document.getElementById('seletor-taxa').value);
+  const taxa100k = parseFloat(dadosAtual.taxas.mortalidade_100k);
+  
+  // Regra de três simples: pega a taxa base de 100k da API, divide e multiplica pela nova escolha
+  const novaTaxa = (taxa100k / 100000) * multiplicador;
+  
+  // Atualiza o valor no HTML arredondando para 2 casas decimais
+  document.getElementById('kpi-taxa').textContent = novaTaxa.toFixed(2);
 }
 
 /* ── TABS ──────────────────────────────────────────── */

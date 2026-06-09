@@ -38,6 +38,9 @@
     </div>
   </div>
 </header>
+<div id="alerta-erro" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid var(--accent-red); color: var(--accent-red); padding: 12px 16px; border-radius: var(--radius-sm); margin-bottom: 20px; font-weight: 600; text-align: center; font-size: 13px;">
+      <strong>FALHA DE COMUNICAÇÃO:</strong> Não foi possível acessar os dados. Tente novamente mais tarde.
+  </div>
 
 <!-- ALERT -->
 <div class="alert-bar" id="alert-bar">
@@ -71,11 +74,20 @@
       <div class="kpi-sub" id="kpi-obitos-d">ocorrências registradas</div>
     </div>
     <div class="kpi">
-      <div class="kpi-stripe" style="background:var(--info)"></div>
-      <div class="kpi-label">Taxa / 100k hab.</div>
-      <div class="kpi-value" id="kpi-taxa" style="color:var(--info)">—</div>
-      <div class="kpi-sub">índice de mortalidade</div>
-    </div>
+  <div class="kpi-accent" style="background:var(--accent-blue)"></div>
+  <div class="kpi-label" style="display: flex; align-items: center; gap: 4px;">
+    TAXA / 
+    <select id="seletor-taxa" class="kpi-select" onchange="atualizarTaxaKpi()">
+      <option value="10000">10K</option>
+      <option value="100000" selected>100K</option>
+      <option value="500000">500K</option>
+      <option value="1000000">1M</option>
+    </select>
+    HAB.
+  </div>
+  <div class="kpi-value" id="kpi-taxa" style="color:var(--accent-blue)">—</div>
+  <div class="kpi-delta" id="kpi-taxa-d">índice de mortalidade</div>
+</div>
     <div class="kpi">
       <div class="kpi-stripe" style="background:var(--warn)"></div>
       <div class="kpi-label">Frota Registrada</div>

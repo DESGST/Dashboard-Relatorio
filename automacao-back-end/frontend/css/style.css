@@ -369,3 +369,29 @@ body {
   .tab       { flex: 1; text-align: center; }
   #heatmap-container { grid-template-columns: repeat(3,1fr); }
 }
+
+/* Estilo minimalista para o seletor embutido no KPI */
+.kpi-select {
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed var(--muted); /* Linha pontilhada sutil */
+  color: var(--muted);
+  font-family: var(--font-head);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  padding-bottom: 1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.kpi-select:hover, .kpi-select:focus {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+.kpi-select option {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 500;
+}
