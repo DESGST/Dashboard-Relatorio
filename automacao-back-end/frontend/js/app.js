@@ -108,12 +108,34 @@ function initCharts() {
     options: { ...def, cutout: '70%' }
   });
 
-  charts.radar = new Chart(document.getElementById('chartRadar'), {
+charts.radar = new Chart(document.getElementById('chartRadar'), {
     type: 'radar',
-    data: { labels: ['Pedestres','Motoc.','Autos','Ciclistas','GET-Alta','GET-Média'],
-      datasets: [{ label:'Risco', data:[0,0,0,0,0,0], backgroundColor: c.fill, borderColor: c.accent, borderWidth: 2, pointBackgroundColor: c.accent, pointRadius: 4 }]
+    data: { 
+      labels: ['Pedestres','Motoc.','Autos','Ciclistas','GET-Alta','GET-Média'],
+      datasets: [{ 
+        label: 'Risco', 
+        data: [0,0,0,0,0,0], 
+        backgroundColor: 'var(--accent-radar)',  /* Fundo sutil dinâmico */
+        borderColor: 'var(--accent)',            /* Linha forte: Azul(Claro) ou Lima(Escuro) */
+        borderWidth: 2, 
+        pointBackgroundColor: 'var(--accent)',   /* Pontos acompanham a linha */
+        pointRadius: 4 
+      }]
     },
-    options: { ...def, scales: { r: { grid:{color:c.grid}, angleLines:{color:c.grid}, pointLabels:{color:c.text,font:{size:10,weight:'600'}}, ticks:{display:false} } } }
+    options: { 
+      ...chartDefaults(), 
+      scales: { 
+        r: { 
+          grid: { color: 'var(--border)' },       /* A Teia de Aranha (Cinza no Claro, Branco no Escuro) */
+          angleLines: { color: 'var(--border)' }, /* Linhas do centro pras pontas */
+          pointLabels: { 
+            color: 'var(--text)',                 /* O Texto: Preto no Claro, Branco no Escuro */
+            font: { size: 11, weight: '700' } 
+          }, 
+          ticks: { display: false } 
+        } 
+      } 
+    }
   });
 
   charts.timeline = new Chart(document.getElementById('chartTimeline'), {
