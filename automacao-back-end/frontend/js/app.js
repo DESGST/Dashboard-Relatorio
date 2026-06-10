@@ -306,89 +306,104 @@ async function toggleTimeLapse() {
   const label = document.getElementById('tl-btn-label');
   const bar   = document.getElementById('player-bar');
 
+  // 1. LÓGICA DE PAUSAR
   if (tlRunning) {
-    clearInterval(tlInterval); tlRunning = false;
-    btn.classList.add('paused');
-    icon.textContent = '▶'; label.textContent = 'Continuar';
-    bar.classList.remove('active');
+    clearInterval(tlInterval); 
+    tlRunning = false;
+    if(btn) btn.classList.add('paused');
+    if(icon) icon.textContent = '▶'; 
+    if(label) label.textContent = 'Continuar';
+    if(bar) bar.classList.remove('active');
     return;
   }
 
-  // Monta lista do período definido pelo usuário
-  const startMes = parseInt(document.getElementById('tl-start-mes').value)||1;
-  const startAno = parseInt(document.getElementById('tl-start-ano').value)||2022;
-  const endMes   = parseInt(document.getElementById('tl-end-mes').value)||12;
-  const endAno   = parseInt(document.getElementById('tl-end-ano').value)||2026;
+  // 2. MONTAR O RECORTAR DE DATAS (Sem inventar dados!)
+  const startMes = parseInt(document.getElementById('tl-start-mes').value) || 1;
+  const startAno = parseInt(document.getElementById('tl-start-ano').value) || 2022;
+  const endMes   = parseInt(document.getElementById('tl-end-mes').value) || 12;
+  const endAno   = parseInt(document.getElementById('tl-end-ano').value) || 2026;
 
   if (tlIndex === 0) {
-    // Rebuild list only on fresh start
     tlList = [];
-    for (let y=startAno; y<=endAno; y++) {
-      const mStart = y===startAno ? startMes : 1;
-      const mEnd   = y===endAno   ? endMes   : 12;
-      for (let m=mStart; m<=mEnd; m++) {
-        const d = calcTotal(gerarDadosMock(m,y));
-        tlList.push({ mes:m, ano:y, total:d.modais.total_painel, taxa:parseFloat(d.taxas.mortalidade_100k) });
+    for (let y = startAno; y <= endAno; y++) {
+      const mStart = y === startAno ? startMes : 1;
+      const mEnd   = y === endAno   ? endMes   : 12;
+      for (let m = mStart; m <= mEnd; m++) {
+        tlList.push({ mes: m, ano: y }); // Guardamos APENAS as datas
       }
     }
-    // reset charts
-    tlData = { labels:[], obitos:[], taxas:[] };
-    ['timeline','tlMensal','taxaTrend'].forEach(k => {
-      charts[k].data.labels = []; charts[k].data.datasets[0].data = []; charts[k].update();
+    
+    // Reset dos gráficos garantindo que não vai dar erro se algum não existir
+    tlData = { labels: [], obitos: [], taxas: [] };
+    ['timeline', 'taxaTrend'].forEach(k => {
+      if(charts[k]) {
+          charts[k].data.labels = []; 
+          charts[k].data.datasets[0].data = []; 
+          charts[k].update();
+      }
     });
-    document.getElementById('tl-total-pill').textContent = '—';
   }
 
+  // 3. INICIAR A ANIMAÇÃO
   tlRunning = true;
-  btn.classList.remove('paused');
-  icon.textContent = '⏸'; label.textContent = 'Pausar';
-  bar.classList.add('active');
+  if(btn) btn.classList.remove('paused');
+  if(icon) icon.textContent = '⏸'; 
+  if(label) label.textContent = 'Pausar';
+  if(bar) bar.classList.add('active');
 
   tlInterval = setInterval(async () => {
+    // Se chegou no fim da lista, para tudo
     if (tlIndex >= tlList.length) {
-      clearInterval(tlInterval); tlRunning = false;
-      btn.classList.add('paused');
-      icon.textContent = '▶'; label.textContent = 'Replay';
-      bar.classList.remove('active');
+      clearInterval(tlInterval); 
+      tlRunning = false;
+      if(btn) btn.classList.add('paused');
+      if(icon) icon.textContent = '▶'; 
+      if(label) label.textContent = 'Replay';
+      if(bar) bar.classList.remove('active');
       tlIndex = 0;
       return;
     }
+    
     const p = tlList[tlIndex];
+    
+    // Atualiza a barra de progresso visual
     document.getElementById('input-ano').value = p.ano;
     document.getElementById('input-mes').value = p.mes;
     const lbl = `${MESES[p.mes-1]}/${p.ano}`;
-    document.getElementById('player-current').textContent = lbl;
-    document.getElementById('player-counter').textContent = `${tlIndex+1} / ${tlList.length}`;
-    document.getElementById('progress-fill').style.width = `${((tlIndex+1)/tlList.length*100).toFixed(1)}%`;
+    
+    if(document.getElementById('player-current')) document.getElementById('player-current').textContent = lbl;
+    if(document.getElementById('player-counter')) document.getElementById('player-counter').textContent = `${tlIndex+1} / ${tlList.length}`;
+    if(document.getElementById('progress-fill')) document.getElementById('progress-fill').style.width = `${((tlIndex+1)/tlList.length*100).toFixed(1)}%`;
 
     await buscarDadosMes(true);
 
+    const totalMes = dadosAtual.modais.total_painel;
+    const taxaMes = parseFloat(dadosAtual.taxas.mortalidade_100k) || 0;
+
     tlData.labels.push(lbl);
-    tlData.obitos.push(p.total);
-    tlData.taxas.push(p.taxa);
+    tlData.obitos.push(totalMes);
+    tlData.taxas.push(taxaMes);
 
-    // Curva acumulada
-    const acum = tlData.obitos.map((_,i)=> tlData.obitos.slice(0,i+1).reduce((a,b)=>a+b,0));
-    charts.timeline.data.labels = [...tlData.labels];
-    charts.timeline.data.datasets[0].data = acum;
-    charts.timeline.update();
+    // === CORREÇÃO AQUI: Removemos a linha do 'const acum = ...' ===
 
-    // Barras mensais
-    charts.tlMensal.data.labels = [...tlData.labels];
-    charts.tlMensal.data.datasets[0].data = [...tlData.obitos];
-    charts.tlMensal.update();
-
-    // Taxa
-    charts.taxaTrend.data.labels = [...tlData.labels];
-    charts.taxaTrend.data.datasets[0].data = [...tlData.taxas];
-    charts.taxaTrend.update();
-
-    const totalAtual = acum[acum.length-1];
-    document.getElementById('tl-total-pill').textContent = `${totalAtual} acumulados`;
+    // 1. Gráfico da Linha do Tempo — Agora mostra o valor REAL do mês, sem acumular
+    if(charts.timeline) {
+        charts.timeline.data.labels = [...tlData.labels];
+        charts.timeline.data.datasets[0].data = [...tlData.obitos]; // <--- Mudado para o valor real
+        charts.timeline.update();
+    }
+    
+    // 2. Gráfico de Tendência da Taxa (Mantido original)
+    if(charts.taxaTrend) {
+        charts.taxaTrend.data.labels = [...tlData.labels];
+        charts.taxaTrend.data.datasets[0].data = [...tlData.taxas];
+        charts.taxaTrend.update();
+    }
 
     tlIndex++;
-  }, 900);
+  }, 600); //Abaixo de 400 o carregamento engasga mas funciona (recomendado a cima de 400)
 }
+
 
 function resetTimeLine() {
   if (tlRunning) { clearInterval(tlInterval); tlRunning = false; }
