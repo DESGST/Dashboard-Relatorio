@@ -25,8 +25,7 @@ SECRET_KEY = 'django-insecure-&m+47o#r1)+@bpkz=9*o3v&54&rxki0936u)dbxktd0zw!u#vg
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = ['dashboard-relatorio.onrender.com', '127.0.0.1', 'localhost']
 
 # Application definition
 
