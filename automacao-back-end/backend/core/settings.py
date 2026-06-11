@@ -9,18 +9,21 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
-
+import os
 from pathlib import Path
+from dotenv import load_dotenv  # <--- Faltava este import!
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# 1. PRIMEIRO criamos o BASE_DIR
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# 2. DEPOIS usamos o BASE_DIR para carregar o arquivo .env
+load_dotenv(os.path.join(BASE_DIR.parent, '.env'))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY_env')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -78,11 +81,11 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'mssql',
-        'NAME': 'infosiga_update',
-        'USER': 'seu_usuario_real',
-        'PASSWORD': 'DesInfosiga!',
-        'HOST': "10.38.124.65\DB_SINISTROS,9880",
-        'PORT': '1433',    
+        'NAME': os.getenv('DB_NAME'),       
+        'USER': os.getenv('DB_USER'),       
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST'),      
+        'PORT': '1433',
         'OPTIONS': {
             'driver': 'ODBC Driver 17 for SQL Server',
         },
