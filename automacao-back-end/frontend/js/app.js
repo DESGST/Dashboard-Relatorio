@@ -165,7 +165,8 @@ async function buscarDadosMes(silencioso = false) {
   if (!silencioso) document.getElementById('loading').classList.add('show');
   
   try {
-    const r = await fetch(`https://dashboard-relatorio.onrender.com/api/relatorio/?ano=${ano}&mes=${mes}`);
+    const r = await fetch(`http://127.0.0.1:8000/api/relatorio/?ano=${ano}&mes=${mes}`);
+    /* const r = await fetch(`https://dashboard-relatorio.onrender.com/api/relatorio/?ano=${ano}&mes=${mes}`); */
 
     if (!r.ok) throw new Error('Erro na resposta da API');
     
