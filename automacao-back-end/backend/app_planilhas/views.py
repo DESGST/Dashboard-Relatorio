@@ -1,9 +1,42 @@
-import datetime
-import pandas as pd
+from django.db.models import Count
+from django.db.models.functions import ExtractYear, ExtractMonth
+from app_planilhas.models import SinistrosInfosiga # Garanta que esse import existe!
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .services import gerar_relatorio_completo, get_sql_connection
 
+# ... (sua função relatorio_api fica aqui) ...
+
+@api_view(['GET'])
+def historico_api(request):
+    """Endpoint que varre o histórico desde 2022 usando o banco da nuvem."""
+    try:
+        # 1. Busca os dados no Supabase usando o Django ORM
+        historico = (
+            SinistrosInfosiga.objects
+            # Extrai o Ano e o Mês da coluna data_sinistro
+            .annotate(
+                ano=ExtractYear('data_sinistro'),
+                mes=ExtractMonth('data_sinistro')
+            )
+            # Filtra do ano 2022 em diante e apenas acidentes com fatalidade
+            .filter(
+                ano__gte=2022, 
+                qtd_gravidade_fatal__gt=0  # Filtro baseado na tabela de sinistros
+            )
+            # Agrupa por ano e mês
+            .values('ano', 'mes')
+            # Conta quantos sinistros ocorreram
+            .annotate(total=Count('id_sinistro'))
+            # Ordena do mais antigo pro mais novo
+            .order_by('ano', 'mes')
+        )
+        
+        # 2. Retorna a lista pronta para o frontend
+        return Response(list(historico))
+
+    except Exception as e:
+        return Response({'erro': str(e)}, status=400)
+        
 @api_view(['GET'])
 def relatorio_api(request):
     """Endpoint para consultar os dados consolidados de um mês específico."""
@@ -47,27 +80,5 @@ def relatorio_api(request):
         }
         return Response(payload)
         
-    except Exception as e:
-        return Response({'erro': str(e)}, status=400)
-
-
-@api_view(['GET'])
-def historico_api(request):
-    """Endpoint que varre o histórico desde 2022 para alimentar a animação do painel."""
-    query = """
-        SELECT ano_sinistro as ano, mes_sinistro as mes, COUNT(id_sinistro) as total
-        FROM vw_pessoas_completa
-        WHERE ano_sinistro >= 2022 AND gravidade_lesao = 'FATAL'
-        GROUP BY ano_sinistro, mes_sinistro
-        ORDER BY ano_sinistro, mes_sinistro
-    """
-    try:
-        conn = get_sql_connection()
-        df = pd.read_sql(query, conn)
-        conn.close()
-        
-        # Converte o DataFrame do pandas em uma lista JSON nativa
-        dados = df.to_dict(orient='records')
-        return Response(dados)
     except Exception as e:
         return Response({'erro': str(e)}, status=400)

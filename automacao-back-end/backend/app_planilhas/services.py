@@ -2,105 +2,70 @@ import os
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
-import pyodbc
-from dotenv import load_dotenv
+from django.db.models import Sum, Count
+
+# Importando os modelos que o Django gerou a partir do seu banco
+from app_planilhas.models import SinistrosInfosiga, PopulacaoIbge, Frotaveiculoshistorico
 
 # ==========================================
-# CONFIGURAÇÕES DO BANCO DE DADOS (SQL SERVER)
-# ==========================================
-load_dotenv()
-
-SQL_SERVER = r"10.38.124.65\DB_SINISTROS,9880"
-DATABASE = "InfosigaDB"
-USERNAME = os.getenv("SQL_USERNAME")
-PASSWORD = os.getenv("SQL_PASSWORD")
-
-def get_sql_connection():
-    """Cria a conexão com o banco de dados SQL Server."""
-    conn_str = (
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-        f"SERVER={SQL_SERVER};"
-        f"DATABASE={DATABASE};"
-        f"UID={USERNAME};"
-        f"PWD={PASSWORD};"
-        f"TrustServerCertificate=yes;"
-    )
-    return pyodbc.connect(conn_str)
-
-# ==========================================
-# FUNÇÕES DE BUSCA DE DADOS
+# FUNÇÕES DE BUSCA DE DADOS (VIA SUPABASE)
 # ==========================================
 
 def buscar_contexto(ano, mes):
     contexto = {"populacao": 0, "frota_total": 0, "frota_motos": 0}
     try:
-        conn = get_sql_connection()
-        
-        # População do IBGE
-        query_pop = f"SELECT populacao FROM populacao_ibge WHERE YEAR(mes_ano) = {ano} AND MONTH(mes_ano) = {mes}"
-        df_pop = pd.read_sql(query_pop, conn)
-        if not df_pop.empty:
-            contexto["populacao"] = int(df_pop.iloc[0]['populacao'])
+        # Busca a População
+        pop = PopulacaoIbge.objects.filter(mes_ano__year=ano, mes_ano__month=mes).first()
+        if pop:
+            contexto["populacao"] = pop.populacao or 0
             
-        # Frota Senatran
-        query_frota = f"SELECT TOTAL, MOTOCICLETA FROM FrotaVeiculosHistorico WHERE ANO = {ano} AND MES = {mes}"
-        df_frota = pd.read_sql(query_frota, conn)
-        if not df_frota.empty:
-            contexto["frota_total"] = int(df_frota.iloc[0]['TOTAL'])
-            contexto["frota_motos"] = int(df_frota.iloc[0]['MOTOCICLETA'])
+        # Busca a Frota
+        frota = Frotaveiculoshistorico.objects.filter(ano=ano, mes=mes).first()
+        if frota:
+            contexto["frota_total"] = frota.total or 0
+            contexto["frota_motos"] = frota.motocicleta or 0
             
-        conn.close()
     except Exception as e:
         print(f"Erro no contexto: {e}")
     return contexto
 
 def buscar_totais_modais(ano, mes):
-    query = f"""
-        SELECT 
-            COUNT(id_sinistro) as total,
-            SUM(CASE WHEN tipo_de_vitima LIKE '%PEDESTRE%' THEN 1 ELSE 0 END) as pedestres,
-            SUM(CASE WHEN tipo_veiculo_vitima LIKE '%BICI%' OR tipo_de_vitima LIKE '%CICL%' THEN 1 ELSE 0 END) as ciclistas,
-            SUM(CASE WHEN tipo_veiculo_vitima LIKE '%MOTO%' OR tipo_de_vitima LIKE '%MOTO%' THEN 1 ELSE 0 END) as motociclistas,
-            SUM(CASE WHEN tipo_veiculo_vitima LIKE '%AUTO%' OR tipo_veiculo_vitima LIKE '%CARRO%' THEN 1 ELSE 0 END) as automoveis
-        FROM vw_pessoas_completa
-        WHERE ano_sinistro = {ano} AND mes_sinistro = {mes} AND gravidade_lesao = 'FATAL'
-    """
     try:
-        conn = get_sql_connection()
-        df = pd.read_sql(query, conn)
-        conn.close()
+        # Busca os totais diretamente das colunas de quantidade da tabela de sinistros
+        agregados = SinistrosInfosiga.objects.filter(
+            data_sinistro__year=ano,
+            data_sinistro__month=mes,
+            qtd_gravidade_fatal__gt=0
+        ).aggregate(
+            total=Count('id_sinistro'),
+            pedestres=Sum('qtd_pedestre'),
+            ciclistas=Sum('qtd_bicicleta'),
+            motociclistas=Sum('qtd_motocicleta'),
+            automoveis=Sum('qtd_automovel')
+        )
         
-        if not df.empty:
-            totais = df.iloc[0].fillna(0).to_dict()
-            identificados = int(totais['pedestres'] + totais['ciclistas'] + totais['motociclistas'] + totais['automoveis'])
-            return {
-                "total_painel": int(totais['total']),
-                "pedestres": int(totais['pedestres']), 
-                "ciclistas": int(totais['ciclistas']),
-                "motociclistas": int(totais['motociclistas']), 
-                "automoveis": int(totais['automoveis']),
-                "nao_informados": int(totais['total'] - identificados)
-            }
+        total = agregados['total'] or 0
+        pedestres = agregados['pedestres'] or 0
+        ciclistas = agregados['ciclistas'] or 0
+        motociclistas = agregados['motociclistas'] or 0
+        automoveis = agregados['automoveis'] or 0
+        
+        identificados = pedestres + ciclistas + motociclistas + automoveis
+
+        return {
+            "total_painel": total,
+            "pedestres": pedestres, 
+            "ciclistas": ciclistas,
+            "motociclistas": motociclistas, 
+            "automoveis": automoveis,
+            "nao_informados": total - identificados
+        }
     except Exception as e:
         print(f"Erro nos modais: {e}")
     
     return {"total_painel": 0, "pedestres": 0, "ciclistas": 0, "motociclistas": 0, "automoveis": 0, "nao_informados": 0}
 
 def buscar_totais_get(ano, mes):
-    query = f"""
-        SELECT 
-            s.id_sinistro,
-            s.tipo_via,
-            COALESCE(c.latitude_geocode, c.latitude_original) AS lat,
-            COALESCE(c.longitude_geocode, c.longitude_original) AS lon,
-            c.GET AS get_banco
-        FROM sinistros_infosiga s
-        LEFT JOIN Dados_CET_Tratados c ON s.id_sinistro = c.id_sinistro
-        WHERE YEAR(s.data_sinistro) = {ano} 
-          AND MONTH(s.data_sinistro) = {mes} 
-          AND s.tipo_registro = 'SINISTRO FATAL'
-    """
-    
     totais_get = {
         "get_1_cn": 0, "get_2_no": 0, "get_3_se": 0, "get_4_su": 0,
         "get_5_so": 0, "get_6_mb": 0, "get_7_le": 0, "get_8_oe": 0,
@@ -108,20 +73,27 @@ def buscar_totais_get(ano, mes):
     }
     
     try:
-        conn = get_sql_connection()
-        df = pd.read_sql(query, conn)
-        conn.close()
-        
-        if df.empty:
+        # Puxa os dados da nuvem e já converte num DataFrame pro Geopandas usar!
+        sinistros = SinistrosInfosiga.objects.filter(
+            data_sinistro__year=ano,
+            data_sinistro__month=mes,
+            tipo_registro='SINISTRO FATAL'
+        ).values('id_sinistro', 'tipo_via', 'latitude', 'longitude')
+
+        if not sinistros:
             return totais_get
             
+        df = pd.DataFrame(list(sinistros))
+        
+        # Renomeia as colunas para o resto do seu código funcionar perfeitamente
+        df = df.rename(columns={'latitude': 'lat', 'longitude': 'lon'})
+
         totais_get['total_mapa'] = len(df)
             
-        # Filtra rodovias primeiro
+        # O SEU CÓDIGO INTACTO DAQUI PARA BAIXO!
         mask_rodovia = df['tipo_via'].str.contains('RODOVIA', na=False, case=False)
         totais_get['rodovias'] = int(mask_rodovia.sum())
         
-        # Pega as vias urbanas e processa GPS
         df_urbanas = df[~mask_rodovia].copy()
         df_urbanas['lat'] = pd.to_numeric(df_urbanas['lat'], errors='coerce')
         df_urbanas['lon'] = pd.to_numeric(df_urbanas['lon'], errors='coerce')
@@ -132,7 +104,6 @@ def buscar_totais_get(ano, mes):
         df_validos = df_urbanas[~mask_sem_coord].copy()
         
         if not df_validos.empty:
-            # Caminho dinâmico para o geojson que deve estar na mesma pasta do services.py
             pasta_atual = os.path.dirname(os.path.abspath(__file__))
             nome_geojson = os.path.join(pasta_atual, 'geoportal_gerencia_cet.geojson')
             
@@ -182,10 +153,6 @@ def buscar_totais_get(ano, mes):
 # ==========================================
 
 def gerar_relatorio_completo(ano, mes):
-    """
-    Chama as 3 consultas SQL e empacota os dados no dicionário 
-    exato que o views.py do Django está esperando para salvar.
-    """
     contexto = buscar_contexto(ano, mes)
     modais = buscar_totais_modais(ano, mes)
     gets = buscar_totais_get(ano, mes)
