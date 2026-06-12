@@ -1,10 +1,12 @@
+import datetime
 from django.db.models import Count
 from django.db.models.functions import ExtractYear, ExtractMonth
-from app_planilhas.models import SinistrosInfosiga # Garanta que esse import existe!
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-# ... (sua função relatorio_api fica aqui) ...
+# Importações do seu projeto
+from app_planilhas.models import SinistrosInfosiga
+from .services import gerar_relatorio_completo
 
 @api_view(['GET'])
 def historico_api(request):
@@ -36,7 +38,8 @@ def historico_api(request):
 
     except Exception as e:
         return Response({'erro': str(e)}, status=400)
-        
+
+
 @api_view(['GET'])
 def relatorio_api(request):
     """Endpoint para consultar os dados consolidados de um mês específico."""
@@ -55,7 +58,7 @@ def relatorio_api(request):
         ano = int(ano_req)
         mes = int(mes_req)
         
-        # 1. Puxa os dados brutos do SQL Server através do Service
+        # 1. Puxa os dados formatados do arquivo services.py
         dados_brutos = gerar_relatorio_completo(ano, mes)
         
         # 2. Extrai variáveis para cálculo de taxas
