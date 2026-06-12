@@ -31,11 +31,11 @@ def buscar_contexto(ano, mes):
 
 def buscar_totais_modais(ano, mes):
     try:
-        # Busca os totais diretamente das colunas de quantidade da tabela de sinistros
+        # Trocamos o filtro para ficar idêntico ao das GETs que funcionou!
         agregados = SinistrosInfosiga.objects.filter(
             data_sinistro__year=ano,
             data_sinistro__month=mes,
-            qtd_gravidade_fatal__gt=0
+            tipo_registro='SINISTRO FATAL' 
         ).aggregate(
             total=Count('id_sinistro'),
             pedestres=Sum('qtd_pedestre'),
@@ -58,13 +58,13 @@ def buscar_totais_modais(ano, mes):
             "ciclistas": ciclistas,
             "motociclistas": motociclistas, 
             "automoveis": automoveis,
-            "nao_informados": total - identificados
+            "nao_informados": total - identificados if (total - identificados) > 0 else 0
         }
     except Exception as e:
         print(f"Erro nos modais: {e}")
     
     return {"total_painel": 0, "pedestres": 0, "ciclistas": 0, "motociclistas": 0, "automoveis": 0, "nao_informados": 0}
-
+    
 def buscar_totais_get(ano, mes):
     totais_get = {
         "get_1_cn": 0, "get_2_no": 0, "get_3_se": 0, "get_4_su": 0,
