@@ -425,21 +425,24 @@ async function executarComparacao() {
   const mB = parseInt(document.getElementById('cmp-b-mes').value);
   const yB = parseInt(document.getElementById('cmp-b-ano').value);
   document.getElementById('loading').classList.add('show');
-  try {
+ try {
     let dA, dB;
     try {
       const [rA,rB] = await Promise.all([
-        fetch(`http://127.0.0.1:8000/api/relatorio/?ano=${yA}&mes=${mA}`),
-        fetch(`http://127.0.0.1:8000/api/relatorio/?ano=${yB}&mes=${mB}`)
+        fetch(`https://dashboard-relatorio.onrender.com/api/relatorio/?ano=${yA}&mes=${mA}`),
+        fetch(`https://dashboard-relatorio.onrender.com/api/relatorio/?ano=${yB}&mes=${mB}`)
       ]);
       dA = rA.ok ? await rA.json() : null;
       dB = rB.ok ? await rB.json() : null;
     } catch {}
-    dA = dA || calcTotal(gerarDadosMock(mA,yA));
-    dB = dB || calcTotal(gerarDadosMock(mB,yB));
+    
+    // Objeto zerado de segurança caso a API não responda
+    const zerado = { modais: { pedestres: 0, motociclistas: 0, automoveis: 0, ciclistas: 0, total_painel: 0 } };
+    dA = dA || zerado;
+    dB = dB || zerado;
 
-    const vA = [dA.modais.pedestres,dA.modais.motociclistas,dA.modais.automoveis,dA.modais.ciclistas];
-    const vB = [dB.modais.pedestres,dB.modais.motociclistas,dB.modais.automoveis,dB.modais.ciclistas];
+    const vA = [dA.modais.pedestres, dA.modais.motociclistas, dA.modais.automoveis, dA.modais.ciclistas];
+    const vB = [dB.modais.pedestres, dB.modais.motociclistas, dB.modais.automoveis, dB.modais.ciclistas];
 
     document.getElementById('cmp-a-title').textContent = `${MESES[mA-1]}/${yA}`;
     document.getElementById('cmp-b-title').textContent = `${MESES[mB-1]}/${yB}`;
@@ -465,8 +468,13 @@ async function carregarAnual() {
     dadosAnual = [];
     for (let m=1; m<=12; m++) {
       let d;
-      try { const r=await fetch(`http://127.0.0.1:8000/api/relatorio/?ano=${ano}&mes=${m}`); d=r.ok?await r.json():null; } catch{}
-      d = d || calcTotal(gerarDadosMock(m,ano));
+      try { 
+        const r = await fetch(`https://dashboard-relatorio.onrender.com/api/relatorio/?ano=${ano}&mes=${m}`); 
+        d = r.ok ? await r.json() : null; 
+      } catch{}
+      
+      // Fallback seguro caso esse mês específico não tenha dados
+      d = d || { modais: { total_painel: 0 } };
       dadosAnual.push(d);
     }
     const vals = dadosAnual.map(d=>d.modais.total_painel);
