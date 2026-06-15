@@ -3,6 +3,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 from django.db.models import Sum, Count
+from django.db import connection
 
 # Importando os modelos que o Django gerou a partir do seu banco
 from app_planilhas.models import SinistrosInfosiga, PopulacaoIbge, Frotaveiculoshistorico
@@ -14,19 +15,33 @@ from app_planilhas.models import SinistrosInfosiga, PopulacaoIbge, Frotaveiculos
 def buscar_contexto(ano, mes):
     contexto = {"populacao": 0, "frota_total": 0, "frota_motos": 0}
     try:
-        # Busca a População
-        pop = PopulacaoIbge.objects.filter(mes_ano__year=ano, mes_ano__month=mes).first()
-        if pop:
-            contexto["populacao"] = pop.populacao or 0
-            
-        # Busca a Frota
-        frota = Frotaveiculoshistorico.objects.filter(ano=ano, mes=mes).first()
-        if frota:
-            contexto["frota_total"] = frota.total or 0
-            contexto["frota_motos"] = frota.motocicleta or 0
-            
+        with connection.cursor() as cursor:
+            # 1. Busca a População direto na tabela nova da nuvem
+            cursor.execute("""
+                SELECT populacao 
+                FROM populacao_ibge 
+                WHERE EXTRACT(YEAR FROM mes_ano) = %s AND EXTRACT(MONTH FROM mes_ano) = %s 
+                LIMIT 1
+            """, [ano, mes])
+            linha_pop = cursor.fetchone()
+            if linha_pop:
+                contexto["populacao"] = linha_pop[0]
+
+            # 2. Busca a Frota direto na tabela nova (ignorando as colunas antigas)
+            cursor.execute("""
+                SELECT total, motocicleta 
+                FROM frota_veiculos 
+                WHERE ano = %s AND mes = %s 
+                LIMIT 1
+            """, [ano, mes])
+            linha_frota = cursor.fetchone()
+            if linha_frota:
+                contexto["frota_total"] = linha_frota[0]
+                contexto["frota_motos"] = linha_frota[1]
+                
     except Exception as e:
         print(f"Erro no contexto: {e}")
+        
     return contexto
 
 def buscar_totais_modais(ano, mes):
