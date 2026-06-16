@@ -333,7 +333,7 @@ async function toggleTimeLapse() {
     
     // Reset dos gráficos garantindo que não vai dar erro se algum não existir
     tlData = { labels: [], obitos: [], taxas: [] };
-    ['timeline', 'taxaTrend'].forEach(k => {
+    ['timeline', 'taxaTrend', 'tlMensal'].forEach(k => {
       if(charts[k]) {
           charts[k].data.labels = []; 
           charts[k].data.datasets[0].data = []; 
@@ -382,7 +382,6 @@ async function toggleTimeLapse() {
     tlData.obitos.push(totalMes);
     tlData.taxas.push(taxaMes);
 
-    // === CORREÇÃO AQUI: Removemos a linha do 'const acum = ...' ===
 
     // 1. Gráfico da Linha do Tempo — Agora mostra o valor REAL do mês, sem acumular
     if(charts.timeline) {
@@ -396,6 +395,13 @@ async function toggleTimeLapse() {
         charts.taxaTrend.data.labels = [...tlData.labels];
         charts.taxaTrend.data.datasets[0].data = [...tlData.taxas];
         charts.taxaTrend.update();
+    }
+
+    // 3. Gráfico de Barras Mensal (Gráfico da Esquerda)
+    if(charts.tlMensal) {
+        charts.tlMensal.data.labels = [...tlData.labels];
+        charts.tlMensal.data.datasets[0].data = [...tlData.obitos]; 
+        charts.tlMensal.update();
     }
 
     tlIndex++;
